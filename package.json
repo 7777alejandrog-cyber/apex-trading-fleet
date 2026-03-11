@@ -1,0 +1,21 @@
+{
+    "name": "apex-trading-fleet",
+    "version": "1.0.0",
+    "type": "module",
+    "scripts": {
+          "start": "npx tsx apex-agent.ts"
+    },
+    "dependencies": {
+          "ai": "latest",
+          "@ai-sdk/anthropic": "latest",
+          "@ai-sdk/openai": "latest",
+          "@ai-sdk/mcp": "latest",
+          "viem": "latest",
+          "permissionless": "latest",
+          "zod": "latest"
+    },
+    "devDependencies": {
+          "tsx": "latest",
+          "typescript": "latest"
+    }
+}
