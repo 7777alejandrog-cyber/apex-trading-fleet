@@ -1,0 +1,144 @@
+name: Passive Income Agents
+
+on:
+  schedule:
+    - cron: '*/30 13-21 * * 1-5'  # Every 30min, 9AM-5PM EST, weekdays (market hours)
+    - cron: '0 */4 * * *'          # Every 4 hours for arbitrage + freelance (24/7)
+  workflow_dispatch:                # Manual trigger button in GitHub
+
+jobs:
+
+  # ── AGENT 5: Freelance Lead Gen (runs every 4 hours) ────
+  freelance-bot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install requests schedule
+
+      - name: Run freelance bot (single scan)
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          python - <<'EOF'
+          import os, requests, json, re, xml.etree.ElementTree as ET
+          from datetime import datetime
+
+          API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
+
+          MY_SKILLS = [
+              "Python", "automation", "trading bots", "web scraping",
+              "AI agents", "data analysis", "customer service"
+          ]
+
+          def call_claude(prompt):
+              if not API_KEY:
+                  return "API key not set"
+              r = requests.post(
+                  "https://api.anthropic.com/v1/messages",
+                  headers={"x-api-key": API_KEY, "anthropic-version": "2023-06-01", "content-type": "application/json"},
+                  json={"model": "claude-sonnet-4-20250514", "max_tokens": 600, "messages": [{"role": "user", "content": prompt}]},
+                  timeout=30
+              )
+              return r.json()["content"][0]["text"]
+
+          def fetch_remoteok():
+              jobs = []
+              try:
+                  r = requests.get("https://remoteok.com/api", headers={"User-Agent": "Mozilla/5.0"}, timeout=10)
+                  for item in r.json()[1:15]:
+                      if isinstance(item, dict):
+                          jobs.append({"title": item.get("position",""), "desc": item.get("description","")[:300], "url": item.get("url",""), "source": "RemoteOK"})
+              except: pass
+              return jobs
+
+          def score(job):
+              text = (job["title"] + " " + job["desc"]).lower()
+              return sum(12 for s in MY_SKILLS if s.lower() in text)
+
+          jobs = fetch_remoteok()
+          scored = sorted([{**j, "score": score(j)} for j in jobs if score(j) >= 24], key=lambda x: x["score"], reverse=True)
+
+          print(f"\nFound {len(scored)} matching jobs\n")
+
+          os.makedirs("proposals", exist_ok=True)
+          for job in scored[:3]:
+              print(f"Writing proposal: {job['title']} (score:{job['score']})")
+              proposal = call_claude(f"Write a 100-word freelance proposal for: {job['title']}. Job details: {job['desc'][:200]}. My skills: Python, automation, AI agents. Be direct and confident.")
+              fname = f"proposals/{datetime.now().strftime('%Y%m%d_%H%M')}_{re.sub(r'[^a-z0-9]','_',job['title'].lower()[:30])}.txt"
+              with open(fname, "w") as f:
+                  f.write(f"JOB: {job['title']}\nURL: {job['url']}\nSCORE: {job['score']}/100\n\n{proposal}\n")
+              print(f"Saved: {fname}\n")
+              print(proposal[:200] + "...\n")
+          EOF
+
+      - name: Upload proposals as artifact
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: freelance-proposals-${{ github.run_number }}
+          path: proposals/
+          retention-days: 7
+
+  # ── AGENT 4: Arbitrage Scanner (runs every 4 hours) ─────
+  arbitrage-bot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Run arbitrage scan
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          python - <<'EOF'
+          import os, requests, re
+          from datetime import datetime
+
+          TARGETS = [
+              ("Nike Air Jordan 1", 180, 40),
+              ("Nike Dunk Low", 130, 30),
+              ("AirPods Pro", 180, 30),
+              ("Nintendo Switch", 280, 40),
+              ("PlayStation 5", 480, 60),
+              ("Yeezy 350", 220, 50),
+              ("MacBook Air M1", 750, 80),
+              ("DeWalt drill", 180, 30),
+          ]
+
+          print(f"\nARBITRAGE SCAN — {datetime.now().strftime('%m/%d %H:%M')}\n")
+          print("=" * 50)
+
+          for item, market_val, min_profit in TARGETS:
+              try:
+                  url = f"https://www.ebay.com/sch/i.html?_nkw={item.replace(' ','+')}&LH_Complete=1&LH_Sold=1&_sop=12"
+                  r = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=10)
+                  prices = [float(p.replace(",","")) for p in re.findall(r'\$([0-9,]+\.?[0-9]*)', r.text) if 5 < float(p.replace(",","")) < market_val * 1.3]
+                  if prices:
+                      avg = sum(prices[:10]) / len(prices[:10])
+                      buy_target = avg * 0.65
+                      profit = market_val - buy_target
+                      if profit >= min_profit:
+                          print(f"OPPORTUNITY: {item}")
+                          print(f"  Buy target (FB Marketplace): ~${buy_target:.0f}")
+                          print(f"  Resell value: ~${market_val}")
+                          print(f"  Potential profit: ~${profit:.0f}")
+                          print(f"  Search: facebook.com/marketplace\n")
+              except Exception as e:
+                  print(f"  {item}: scan failed ({e})")
+
+          print("=" * 50)
+          EOF
