@@ -1,0 +1,46 @@
+name: Income Ecosystem
+
+on:
+  schedule:
+    - cron: '0 8 * * *'
+  workflow_dispatch:
+
+jobs:
+
+  ugc-system:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      - run: pip install requests
+      - name: Run UGC creator system
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: python agent_c_ugc.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ugc-kit-${{ github.run_number }}
+          path: ugc/
+          retention-days: 14
+
+  content-factory:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      - run: pip install requests
+      - name: Run content factory and affiliate engine
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: python agent_d_content.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: content-${{ github.run_number }}
+          path: content/
+          retention-days: 14
