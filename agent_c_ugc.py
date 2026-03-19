@@ -27,7 +27,7 @@ import json
 import requests
 from datetime import datetime
 
-API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
+API_KEY = os.environ.get("ANTHROPIC_API_KEY", "").strip().strip()
 
 # ── YOUR CREATOR PROFILE ─────────────────────────────────
 CREATOR_PROFILE = {
